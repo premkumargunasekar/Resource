@@ -1,0 +1,7 @@
+gcp_projects:
+  - name: network-automation-471112
+    service_account: /etc/ansible/Gcp/network-automation-471112-b38517b68f44.json
+
+  - name: curious-idea-475408-d2
+    service_account: /etc/ansible/Gcp/curious-idea-475408-d2-4fc882d96665.json
+

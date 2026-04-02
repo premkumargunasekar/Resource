@@ -1,0 +1,10 @@
+big_ips:
+  - region: AM
+    gcp_region: us-east4
+    env: PR
+    cidr: 10.1.0.0/16
+
+  - region: EU
+    gcp_region: europe-west3
+    env: NP
+    cidr: 10.0.64.0/19
