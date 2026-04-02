@@ -1,24 +1,141 @@
 ---
-- name: Create GCP Subnet
-  hosts: 192.168.20.129
-  gather_facts: no
+# =============================================================
+# GCP IP Capacity Report — Hardened Production Playbook
+# =============================================================
+
+- name: GCP IP Capacity Report
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - vars/reserved_ranges.yml
+    - vars/projects.yml
+    - vars/region_map.yml
 
   vars:
-    gcp_service_account_file: /etc/ansible/GCP_Auth/gp-lab.json
-    gcp_project: gp-lab-490903
-    gcp_region: asia-south1
-    gcp_network: testvpc
+    report_output_dir: "/tmp/gcp_ip_report"
 
   tasks:
-    - name: Create subnet
-      google.cloud.gcp_compute_subnetwork:
-        name: my-subnet
-        region: "{{ gcp_region }}"
-        network:
-          name: "{{ gcp_network }}"
-          project: "{{ gcp_project }}"
-        ip_cidr_range: 192.168.1.0/24
-        project: "{{ gcp_project }}"
+
+    # ----------------------------------------------------------
+    # Step 0 — Validate required variables
+    # ----------------------------------------------------------
+    - name: Validate required inputs
+      assert:
+        that:
+          - big_ips is defined
+          - gcp_projects is defined
+          - region_map is defined
+        fail_msg: "Required variables missing."
+
+    # ----------------------------------------------------------
+    # Step 1 — Extract GCP regions
+    # ----------------------------------------------------------
+    - name: Extract GCP regions from region_map
+      set_fact:
+        gcp_regions: >-
+          {{ region_map | dict2items
+             | map(attribute='value.gcp_region')
+             | unique
+             | list }}
+
+    # ----------------------------------------------------------
+    # Step 2 — Initialize subnet collector
+    # ----------------------------------------------------------
+    - name: Initialize subnet list
+      set_fact:
+        all_subnets: []
+
+    # ----------------------------------------------------------
+    # Step 3 — Fetch subnets safely (controlled failure handling)
+    # ----------------------------------------------------------
+    - name: Fetch subnets from each project and region
+      google.cloud.gcp_compute_subnetwork_info:
+        project: "{{ item.0.name }}"
+        region: "{{ item.1 }}"
         auth_kind: serviceaccount
-        service_account_file: "{{ gcp_service_account_file }}"
-        state: present
+        service_account_file: "{{ item.0.service_account }}"
+      loop: "{{ gcp_projects | product(gcp_regions) | list }}"
+      register: subnet_results
+      failed_when: false
+      changed_when: false
+      no_log: true
+      retries: 3
+      delay: 5
+      loop_control:
+        label: "{{ item.0.name }} / {{ item.1 }}"
+
+    # ----------------------------------------------------------
+    # Step 4 — Warn for individual failures
+    # ----------------------------------------------------------
+    - name: Warn about failed subnet fetches
+      debug:
+        msg: >-
+          WARNING: Failed to fetch subnets for project
+          '{{ item.item.0.name }}' in region '{{ item.item.1 }}'.
+          Error: {{ item.msg | default('unknown error') }}
+      loop: "{{ subnet_results.results }}"
+      when: item.failed | default(false)
+      loop_control:
+        label: "{{ item.item.0.name }} / {{ item.item.1 }}"
+
+    # ----------------------------------------------------------
+    # Step 5 — Abort if ALL fetches failed
+    # ----------------------------------------------------------
+    - name: Fail if no subnet fetch succeeded
+      fail:
+        msg: >-
+          All subnet fetch tasks failed.
+          Check credentials or API permissions.
+      when: >-
+        subnet_results.results
+        | rejectattr('failed', 'equalto', false)
+        | list
+        | length
+        == subnet_results.results | length
+
+    # ----------------------------------------------------------
+    # Step 6 — Merge successful subnet results (deduplicated)
+    # ----------------------------------------------------------
+    - name: Merge subnet results safely
+      set_fact:
+        all_subnets: >-
+          {{
+            (all_subnets + (item.resources | default([])))
+            | unique(attribute='ipCidrRange')
+          }}
+      loop: "{{ subnet_results.results }}"
+      when:
+        - not (item.failed | default(false))
+        - item.resources is defined
+      loop_control:
+        label: "{{ item.item.0.name }} / {{ item.item.1 }}"
+      changed_when: false
+
+    # ----------------------------------------------------------
+    # Step 7 — Fail if merged result is empty
+    # ----------------------------------------------------------
+    - name: Ensure subnet data exists
+      fail:
+        msg: "No subnet data available to generate report."
+      when: all_subnets | length == 0
+
+    # ----------------------------------------------------------
+    # Step 8 — Generate IP Capacity Report
+    # ----------------------------------------------------------
+    - name: Generate IP Capacity Report
+      gcp_ip_capacity_v7:
+        reserved_blocks: "{{ big_ips }}"
+        subnets: "{{ all_subnets }}"
+        output_file: "{{ report_output_dir }}/IP_Capacity_Report.xlsx"
+        utilization_threshold: 60
+      register: report_result
+
+    # ----------------------------------------------------------
+    # Step 9 — Report outcome
+    # ----------------------------------------------------------
+    - name: Report status
+      debug:
+        msg: >-
+          Report {{ 'updated' if report_result.changed else 'unchanged (no data change)' }}:
+          {{ report_result.output_file }}
