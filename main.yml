@@ -1,1 +1,19 @@
-123
+- name: Create GCP Subnet
+  hosts: 192.168.20.129
+  gather_facts: no
+
+  vars:
+    gcp_service_account_file: /etc/ansible/GCP_Auth/gp-lab.json
+
+  tasks:
+    - name: Create subnet
+      google.cloud.gcp_compute_subnetwork:
+        name: my-subnet
+        region: asia-south1
+        network:
+          name: my-vpc-network
+        ip_cidr_range: 10.0.1.0/24
+        project: my-gcp-project-id
+        auth_kind: serviceaccount
+        service_account_file: "{{ gcp_service_account_file }}"
+        state: present
