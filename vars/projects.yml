@@ -1,5 +1,5 @@
 gcp_projects:
-  - name: network-automation-471112
+  - name: gp-lab-490903
     service_account: /etc/ansible/GCP_Auth/gp-lab-490903
 
  
