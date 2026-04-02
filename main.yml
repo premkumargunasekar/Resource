@@ -7,14 +7,16 @@
     gcp_service_account_file: /etc/ansible/GCP_Auth/gp-lab.json
     gcp_project: gp-lab-490903
     gcp_region: asia-south1
-    gcp_network: testvpc   # Make sure this exists
+    gcp_network: testvpc
 
   tasks:
     - name: Create subnet
       google.cloud.gcp_compute_subnetwork:
         name: my-subnet
         region: "{{ gcp_region }}"
-        network: "projects/{{ gcp_project }}/global/networks/{{ gcp_network }}"
+        network:
+          name: "{{ gcp_network }}"
+          project: "{{ gcp_project }}"
         ip_cidr_range: 192.168.1.0/24
         project: "{{ gcp_project }}"
         auth_kind: serviceaccount
