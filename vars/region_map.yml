@@ -1,6 +1,6 @@
 region_map:
   AM:
-    gcp_region: us-east4
+    gcp_region: northamerica-northeast1
   EU:
     gcp_region: europe-west3
   AO:
