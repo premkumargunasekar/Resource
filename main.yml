@@ -124,7 +124,7 @@
     # Step 8 — Generate IP Capacity Report
     # ----------------------------------------------------------
     - name: Generate IP Capacity Report
-      gcp_ip_capacity_v7:
+      gcp_ip_capacity:
         reserved_blocks: "{{ big_ips }}"
         subnets: "{{ all_subnets }}"
         output_file: "{{ report_output_dir }}/IP_Capacity_Report.xlsx"
