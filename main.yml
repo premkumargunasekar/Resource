@@ -4,7 +4,7 @@
 # =============================================================
 
 - name: GCP IP Capacity Report
-  hosts: localhost
+  hosts: 192.168.20.129
   gather_facts: false
 
   vars_files:
