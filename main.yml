@@ -7,7 +7,7 @@
     gcp_service_account_file: /etc/ansible/GCP_Auth/gp-lab.json
     gcp_project: gp-lab-490903
     gcp_region: asia-south1
-    gcp_network: my-vpc-network   # Make sure this exists
+    gcp_network: testvpc   # Make sure this exists
 
   tasks:
     - name: Create subnet
